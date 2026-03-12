@@ -1,0 +1,22 @@
+{
+"user_credentials": {
+        "username/email": "parthdhanker",
+        "password": "Parth@123"
+},
+
+"search_parameters": {
+        "datasetId": "3RIMG_L2B_CMK",
+        "startTime": "2025-12-01",
+        "endTime": "2025-12-03",
+        "count": "10",
+        "boundingBox": "65.0,5.0,100.0,38.0",
+        "gId": ""
+    },
+    "download_settings": {
+        "download_path": "C:/Users/parth/OneDrive/Desktop/cloud project/api data/",
+        "organize_by_date": true,
+        "skip_user_prompt": true,
+        "generate_error_log": true,
+        "error_log_path": "C:/Users/parth/OneDrive/Desktop/cloud project/api data/logs/"
+    }
+}
