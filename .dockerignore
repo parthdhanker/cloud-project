@@ -12,7 +12,9 @@ archive/
 
 *.h5
 *.keras
+*.onnx
 
+models/
 cmenv/
 venv/
 .venv/

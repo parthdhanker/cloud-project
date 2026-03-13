@@ -9,8 +9,7 @@ langchain-core
 langchain-community
 langchain-chroma
 langchain-ollama
-sentence-transformers
-transformers
+fastembed
 apscheduler
 h5py
 requests

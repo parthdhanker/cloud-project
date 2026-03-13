@@ -52,14 +52,10 @@ def set_db_path(db_path: str, guidelines_path: str):
 def _get_db():
     global _db
     if _db is None:
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+        from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
         from langchain_chroma import Chroma
 
-        embeddings = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
+        embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
         _db = Chroma(
             persist_directory=_DB_PATH,
             embedding_function=embeddings,
