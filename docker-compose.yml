@@ -21,6 +21,8 @@ services:
     volumes:
       - ./models:/app/models        # mount ONNX model, don't bake it in
       - ./rag/Chroma dir:/app/rag/Chroma dir  # mount chroma DB
+      - fastembed_cache:/root/.cache/fastembed   # ← add this
 
 volumes:
   ollama_data:
+  fastembed_cache:   
