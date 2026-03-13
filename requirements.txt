@@ -3,6 +3,7 @@ uvicorn
 numpy
 opencv-python-headless
 onnxruntime
++ scipy
 chromadb
 langchain
 langchain-core
