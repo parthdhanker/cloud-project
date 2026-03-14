@@ -18,5 +18,3 @@ models/
 cmenv/
 venv/
 .venv/
-
-rag/Chroma dir/

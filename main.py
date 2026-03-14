@@ -241,6 +241,17 @@ async def startup_event():
     try:
         load_model()
         logger.info("[startup] ONNX model loaded successfully.")
+            # ── Seed empty metadata so frontend doesn't get 503 ───────────────────
+        meta_path = REALTIME_DIR / "metadata.json"
+        if not meta_path.exists():
+            REALTIME_DIR.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(json.dumps({
+                "frames": [],
+                "lastUpdated": None,
+                "latestSlot": None,
+                "status": "pending"
+            }))
+            logger.info("[startup] Seeded empty metadata.json")
     except FileNotFoundError as e:
         logger.warning(
             f"[startup] ONNX model NOT loaded: {e}\n"
