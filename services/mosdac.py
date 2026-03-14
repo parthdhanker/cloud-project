@@ -32,19 +32,26 @@ logger = logging.getLogger(__name__)
 # AUTHENTICATION
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_token(username: str, password: str) -> dict:
+def get_token(username: str, password: str, max_attempts: int = 5) -> dict:
     """Authenticate with MOSDAC and return token dict {access_token, refresh_token}."""
-    r = requests.post(
-        TOKEN_URL,
-        json={"username": username, "password": password},
-        timeout=30,
-    )
-    r.raise_for_status()
-    d = r.json()
-    return {
-        "access_token":  d["access_token"],
-        "refresh_token": d["refresh_token"],
-    }
+    for attempt in range(1, max_attempts + 1):
+        try:
+            r = requests.post(
+                TOKEN_URL,
+                json={"username": username, "password": password},
+                timeout=30,
+            )
+            r.raise_for_status()
+            d = r.json()
+            return {
+                "access_token":  d["access_token"],
+                "refresh_token": d["refresh_token"],
+            }
+        except (requests.ConnectionError, requests.Timeout) as e:
+            logger.warning(f"[MOSDAC auth] Network error (attempt {attempt}/{max_attempts}): {e}")
+            if attempt == max_attempts:
+                raise
+            time.sleep(5 * attempt)
 
 
 def do_refresh_token(refresh_tok: str) -> dict:

@@ -58,10 +58,7 @@ async def get_realtime_metadata():
         raise HTTPException(status_code=500, detail="Corrupt metadata file.")
 
     # Validate minimal structure
-    if "frames" not in meta or not meta["frames"]:
-        raise HTTPException(
-            status_code=503,
-            detail="Scheduler has not produced any frames yet.",
-        )
+    if "frames" not in meta:
+        raise HTTPException(status_code=500, detail="Corrupt metadata file.")
 
     return JSONResponse(content=meta)
