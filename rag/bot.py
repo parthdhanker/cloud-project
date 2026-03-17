@@ -1,61 +1,40 @@
 """
 rag/bot.py — RAG pipeline for Cloud AI Assistant.
-
-Adapted from Bot.py. Stateless — safe to call from FastAPI threads.
-Uses ChatOllama (llama3.2) + ChromaDB + HuggingFace embeddings.
-
-Usage:
-    from rag.bot import ask, set_db_path
-
-    set_db_path("/path/to/chroma_db", "/path/to/interaction_guidelines.txt")
-    answer = ask("Why are cloud boundaries coarse?", app_context={...})
+Uses Claude API (claude-haiku) + ChromaDB + FastEmbed embeddings.
 """
 
 import logging
 import os
 from pathlib import Path
 from typing import Optional
+import anthropic
 
 logger = logging.getLogger(__name__)
 
-# ── Defaults — override via environment variables or set_db_path() ────────────
-_DB_PATH = "/app/rag/Chroma dir"
+_DB_PATH         = "/app/rag/Chroma dir"
 _GUIDELINES_PATH = "/app/rag/interaction_guidelines.txt"
 
-EMBEDDING_MODEL  = "sentence-transformers/all-MiniLM-L6-v2"
-COLLECTION_NAME  = "cloud_prediction_kb"
-OLLAMA_MODEL     = os.environ.get("OLLAMA_MODEL", "llama3.2")
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+COLLECTION_NAME = "cloud_prediction_kb"
+CLAUDE_MODEL    = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
-# ── Lazy-loaded singletons ─────────────────────────────────────────────────────
-_db             = None
-_llm            = None
-_system_prompt  = None
+_db            = None
+_system_prompt = None
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CONFIGURATION
-# ══════════════════════════════════════════════════════════════════════════════
 
 def set_db_path(db_path: str, guidelines_path: str):
-    """Call once at startup to override default paths."""
-    global _DB_PATH, _GUIDELINES_PATH, _db, _llm, _system_prompt
+    global _DB_PATH, _GUIDELINES_PATH, _db, _system_prompt
     _DB_PATH         = db_path
     _GUIDELINES_PATH = guidelines_path
-    # Force reload on next ask()
-    _db = _llm = _system_prompt = None
+    _db = _system_prompt = None
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# LAZY INITIALISATION
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _get_db():
     global _db
     if _db is None:
         from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
         from langchain_chroma import Chroma
-
-        embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+        embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
         _db = Chroma(
             persist_directory=_DB_PATH,
             embedding_function=embeddings,
@@ -63,19 +42,6 @@ def _get_db():
         )
         logger.info(f"[RAG] ChromaDB loaded — {_db._collection.count()} chunks")
     return _db
-
-
-def _get_llm():
-    global _llm
-    if _llm is None:
-        from langchain_ollama import ChatOllama
-        _llm = ChatOllama(
-            model=OLLAMA_MODEL,
-            temperature=0.3,
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434"),
-        )
-        logger.info(f"[RAG] LLM ready: {OLLAMA_MODEL}")
-    return _llm
 
 
 def _get_system_prompt() -> str:
@@ -94,10 +60,6 @@ def _get_system_prompt() -> str:
     return _system_prompt
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# INTENT DETECTION  (from Bot.py verbatim)
-# ══════════════════════════════════════════════════════════════════════════════
-
 INTENT_MAP = {
     "Metrices":     ["csi", "metric", "score", "accuracy", "precision", "f1"],
     "Failure":      ["blurry", "coarse", "problem", "bad", "fail", "wrong", "miss"],
@@ -114,10 +76,6 @@ def detect_intent(question: str) -> str:
     return "Overview"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# RETRIEVAL
-# ══════════════════════════════════════════════════════════════════════════════
-
 def retrieve_docs(question: str, k: int = 4) -> tuple[list, str]:
     intent    = detect_intent(question)
     db        = _get_db()
@@ -130,18 +88,10 @@ def retrieve_docs(question: str, k: int = 4) -> tuple[list, str]:
     return docs, intent
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PROMPT BUILDER
-# ══════════════════════════════════════════════════════════════════════════════
-
 def build_prompt(question: str, docs: list, app_context: dict) -> str:
     retrieved = "\n\n---\n\n".join(d.page_content for d in docs) if docs else "(no relevant chunks found)"
-
     ctx_lines = "\n".join(f"  {k:15}: {v}" for k, v in app_context.items())
-
-    return f"""{_get_system_prompt()}
-
-CURRENT APP STATE:
+    return f"""CURRENT APP STATE:
 {ctx_lines}
 
 RETRIEVED KNOWLEDGE:
@@ -152,31 +102,22 @@ USER QUESTION:
 """
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PUBLIC API
-# ══════════════════════════════════════════════════════════════════════════════
-
 def ask(question: str, app_context: Optional[dict] = None) -> dict:
-    """
-    Full RAG pipeline: question → intent → retrieve → prompt → LLM → answer.
-
-    Returns:
-        {
-            "answer":  str,
-            "intent":  str,
-            "chunks":  int,
-        }
-    """
     if app_context is None:
         app_context = {}
 
     try:
         docs, intent = retrieve_docs(question)
         prompt       = build_prompt(question, docs, app_context)
-        llm          = _get_llm()
-        response     = llm.invoke(prompt)
+        client       = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        message      = client.messages.create(
+            model      = CLAUDE_MODEL,
+            max_tokens = 1024,
+            system     = _get_system_prompt(),
+            messages   = [{"role": "user", "content": prompt}],
+        )
         return {
-            "answer": response.content,
+            "answer": message.content[0].text,
             "intent": intent,
             "chunks": len(docs),
         }
