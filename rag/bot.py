@@ -1,13 +1,13 @@
 """
 rag/bot.py — RAG pipeline for Cloud AI Assistant.
-Uses Claude API (claude-haiku) + ChromaDB + FastEmbed embeddings.
+Uses Groq API (free) + ChromaDB + FastEmbed embeddings.
 """
 
 import logging
 import os
 from pathlib import Path
 from typing import Optional
-import anthropic
+from groq import Groq
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ _GUIDELINES_PATH = "/app/rag/interaction_guidelines.txt"
 
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 COLLECTION_NAME = "cloud_prediction_kb"
-CLAUDE_MODEL    = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+GROQ_MODEL      = os.environ.get("GROQ_MODEL", "llama3-8b-8192")
 
 _db            = None
 _system_prompt = None
@@ -109,15 +109,17 @@ def ask(question: str, app_context: Optional[dict] = None) -> dict:
     try:
         docs, intent = retrieve_docs(question)
         prompt       = build_prompt(question, docs, app_context)
-        client       = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        message      = client.messages.create(
-            model      = CLAUDE_MODEL,
+        client       = Groq(api_key=os.environ["GROQ_API_KEY"])
+        response     = client.chat.completions.create(
+            model    = GROQ_MODEL,
+            messages = [
+                {"role": "system", "content": _get_system_prompt()},
+                {"role": "user",   "content": prompt},
+            ],
             max_tokens = 1024,
-            system     = _get_system_prompt(),
-            messages   = [{"role": "user", "content": prompt}],
         )
         return {
-            "answer": message.content[0].text,
+            "answer": response.choices[0].message.content,
             "intent": intent,
             "chunks": len(docs),
         }

@@ -16,4 +16,4 @@ h5py
 requests
 python-dotenv
 pillow
-anthropic
+groq
